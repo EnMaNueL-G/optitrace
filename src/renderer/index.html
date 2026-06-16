@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;">
+<title>OptiTrace</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="top glass">
+    <div class="brand"><span class="logo">🔎</span><div>OptiTrace<small>Búsqueda de información pública</small></div></div>
+    <div class="search">
+      <span style="color:var(--muted)">⌕</span>
+      <input id="q" placeholder="Escribe un usuario, correo, web, IP o teléfono…" autocomplete="off" spellcheck="false">
+      <span class="badge" id="kind">—</span>
+    </div>
+    <button class="btn primary" id="go">Buscar</button>
+    <button class="btn icon" id="img" title="Analizar una imagen">📷</button>
+    <button class="btn icon" id="map" title="Ver mapa de conexiones (avanzado)">🕸️</button>
+    <button class="btn icon" id="settings" title="Ajustes">⚙️</button>
+  </header>
+
+  <section class="results glass">
+    <div class="bar" id="bar"></div>
+    <div class="summary hidden" id="summary"></div>
+    <div class="scroll" id="scroll">
+      <div class="welcome" id="welcome">
+        <div>
+          <h2>¿Sobre quién o qué quieres saber?</h2>
+          <div>Escribe un dato arriba y pulsa <b>Buscar</b>. O analiza una imagen con 📷.</div>
+          <div class="ex" id="examples">
+            <button data-v="github">Probar: github</button>
+            <button data-v="example.com">Probar: example.com</button>
+            <button data-v="8.8.8.8">Probar: 8.8.8.8</button>
+          </div>
+          <div class="legal">Solo busca información <b>pública y legal</b>. Uso profesional y responsable.</div>
+        </div>
+      </div>
+      <div id="list"></div>
+    </div>
+  </section>
+</div>
+
+<!-- Mapa avanzado (opcional) -->
+<div class="overlay glass" id="overlay">
+  <canvas id="graph"></canvas>
+  <div class="legend" id="legend"><b>Tipos</b></div>
+  <button class="btn primary close" id="mapClose">✕ Cerrar mapa</button>
+  <div class="hintbar">Arrastra para mover · rueda para zoom · doble-clic en un punto para buscar más</div>
+</div>
+
+<!-- Ajustes -->
+<div class="modal-bg" id="mset">
+  <div class="modal">
+    <h2>Ajustes</h2>
+    <p class="sub">OptiTrace funciona sin claves. Estas opciones avanzadas amplían los resultados. Se guardan solo en tu equipo.</p>
+    <div class="field"><label>HaveIBeenPwned — para ver filtraciones de datos (clave gratis recomendada)</label><input id="k_hibp" placeholder="pega tu clave"></div>
+    <div class="field"><label>Shodan</label><input id="k_shodan" placeholder="opcional"></div>
+    <div class="field"><label>Hunter.io</label><input id="k_hunter" placeholder="opcional"></div>
+    <div class="field"><label>VirusTotal</label><input id="k_vt" placeholder="opcional"></div>
+    <div class="field"><label>Proxy de salida (privacidad)</label><input id="k_proxy" placeholder="opcional — http://127.0.0.1:8080"></div>
+    <div class="note">⚖️ Uso responsable: solo datos públicos y con base legítima.</div>
+    <div class="foot"><button class="btn" id="mClear">Limpiar resultados</button><button class="btn" id="mExport">Exportar informe</button><button class="btn primary" id="setSave">Guardar</button></div>
+  </div>
+</div>
+
+<script src="graph.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Dependencias y builds
+node_modules/
+dist/
+build-obf/
+*.log
+
+# Datos de usuario / temporales
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Lanzador generado localmente
+Abrir OptiTrace.bat
+
+# Mantener el dataset de Maigret (necesario en runtime, licencia MIT):
+!data/maigret-data.json
