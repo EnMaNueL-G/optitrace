@@ -62,6 +62,33 @@ const PROVIDERS = [
     },
   },
   {
+    name: 'Pornhub', domain: 'pornhub.com', cat: 'adulto',
+    async check(email, http) {
+      const page = await http.getText('https://www.pornhub.com/signup', { timeout: 10000 });
+      if (!page) return null;
+      const tok = (page.match(/name="token"[^>]*value="([^"]+)"/) || page.match(/value="([^"]+)"[^>]*name="token"/) || [])[1];
+      if (!tok) return null;
+      const r = await http.req('https://www.pornhub.com/user/create_account_check?token=' + encodeURIComponent(tok),
+        { method: 'POST', timeout: 10000, headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: new URLSearchParams({ check_what: 'email', email }).toString() });
+      const t = await r.text();
+      try { const j = JSON.parse(t); return j.error_message === 'Email has been taken.'; } catch (_) { return /Email has been taken/i.test(t); }
+    },
+  },
+  {
+    name: 'Redtube', domain: 'redtube.com', cat: 'adulto',
+    async check(email, http) {
+      const pre = await http.req('https://redtube.com/register', { timeout: 10000 });
+      const cookie = jar(pre.headers.get('set-cookie'));
+      const page = await pre.text();
+      const tok = (page.match(/id="token"[^>]*value="([^"]+)"/) || page.match(/value="([^"]+)"[^>]*id="token"/) || [])[1];
+      if (!tok) return null;
+      const r = await http.req('https://www.redtube.com/user/create_account_check?token=' + encodeURIComponent(tok),
+        { method: 'POST', timeout: 10000, headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest', Origin: 'https://redtube.com', ...(cookie ? { Cookie: cookie } : {}) }, body: new URLSearchParams({ token: tok, redirect: '', check_what: 'email', email }).toString() });
+      const t = await r.text();
+      return /Email has been taken/i.test(t);
+    },
+  },
+  {
     name: 'Spotify', domain: 'spotify.com', cat: 'música',
     async check(email, http) {
       const t = await http.getText('https://spclient.wg.spotify.com/signup/public/v1/account?validate=1&email=' + encodeURIComponent(email), { timeout: 9000 });
