@@ -26,10 +26,10 @@ const emailCore = {
 
     // Gravatar (perfil publico vinculado al hash del email)
     const hash = crypto.createHash('md5').update(email).digest('hex');
-    const av = await ctx.http.probe(`https://www.gravatar.com/avatar/${hash}?d=404`, { timeout: 8000 });
+    const av = await ctx.http.probe(`https://www.gravatar.com/avatar/${hash}?d=404`, { timeout: 8000, signal: ctx.signal });
     if (av.ok) {
       ctx.node('image', `https://www.gravatar.com/avatar/${hash}?s=256`, { rel: 'avatar Gravatar', source: 'gravatar', label: 'Avatar (Gravatar)' });
-      const prof = await ctx.http.getJson(`https://www.gravatar.com/${hash}.json`, { timeout: 8000 });
+      const prof = await ctx.http.getJson(`https://www.gravatar.com/${hash}.json`, { timeout: 8000, signal: ctx.signal });
       const e = prof && prof.entry && prof.entry[0];
       if (e) {
         if (e.displayName || (e.name && e.name.formatted)) ctx.node('person', e.displayName || e.name.formatted, { rel: 'nombre (Gravatar)', source: 'gravatar' });
@@ -41,7 +41,6 @@ const emailCore = {
     } else ctx.log('  Gravatar: sin avatar asociado');
 
     // Pivote: parte local como posible usuario
-    if (/^[a-z0-9._-]{3,}$/i.test(local)) ctx.node('username', local, { rel: 'posible usuario', source: 'email' });
   },
 };
 
@@ -50,7 +49,7 @@ const emailHibp = {
   async run(entity, ctx) {
     const key = ctx.keys.hibp;
     const j = await ctx.http.getJson(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(entity.value)}?truncateResponse=false`,
-      { timeout: 12000, headers: { 'hibp-api-key': key, 'user-agent': 'OptiTrace' } });
+      { timeout: 12000, signal: ctx.signal, headers: { 'hibp-api-key': key, 'user-agent': 'OptiTrace' } });
     if (!Array.isArray(j)) { ctx.log('  HIBP: sin brechas conocidas (o clave inválida)'); return; }
     for (const b of j) ctx.node('breach', b.Name, { rel: 'brecha', source: 'HIBP', label: `${b.Name} (${(b.BreachDate || '').slice(0, 4)})`, data: { fecha: b.BreachDate, datos: (b.DataClasses || []).join(', '), cuentas: b.PwnCount } });
     ctx.log(`  HIBP: ⚠ ${j.length} brecha(s) — ${j.map((b) => b.Name).slice(0, 6).join(', ')}`);

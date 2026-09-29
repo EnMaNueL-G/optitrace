@@ -17,7 +17,7 @@ class TraceGraph {
     this.onPivot = opts.onPivot || (() => {});
     this._bind();
     this._loop = this._loop.bind(this);
-    requestAnimationFrame(this._loop);
+    this.active = false;
   }
 
   resize() {
@@ -82,7 +82,15 @@ class TraceGraph {
   _toScreen(n) { return { x: n.x * this.scale + this.ox, y: n.y * this.scale + this.oy }; }
   _fromScreen(px, py) { return { x: (px - this.ox) / this.scale, y: (py - this.oy) / this.scale }; }
 
+  /** Pausa el cálculo mientras el mapa está oculto (el bucle O(n²) no debe gastar CPU en segundo plano). */
+  setActive(on) {
+    const was = this.active;
+    this.active = !!on;
+    if (this.active && !was) requestAnimationFrame(this._loop);
+  }
+
   _loop() {
+    if (!this.active) return;
     this._tick();
     const c = this.ctx;
     c.clearRect(0, 0, this.W, this.H);

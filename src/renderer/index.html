@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>OptiTrace</title>
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,13 +16,17 @@
       <span class="badge" id="kind">—</span>
     </div>
     <button class="btn primary" id="go">Buscar</button>
-    <button class="btn icon" id="img" title="Analizar una imagen">📷</button>
+    <button class="btn icon" id="img" title="Analizar una imagen de tu equipo">📷</button>
+    <button class="btn icon" id="export" title="Exportar informe (HTML o PDF)">📄</button>
     <button class="btn icon" id="map" title="Ver mapa de conexiones (avanzado)">🕸️</button>
     <button class="btn icon" id="settings" title="Ajustes">⚙️</button>
+    <button class="btn icon" id="about" title="Acerca de">❤</button>
   </header>
 
+  <div class="update hidden" id="update"></div>
+
   <section class="results glass">
-    <div class="bar" id="bar"></div>
+    <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
     <div class="summary hidden" id="summary"></div>
     <div class="scroll" id="scroll">
       <div class="welcome" id="welcome">
@@ -34,7 +38,7 @@
             <button data-v="example.com">Probar: example.com</button>
             <button data-v="8.8.8.8">Probar: 8.8.8.8</button>
           </div>
-          <div class="legal">Solo busca información <b>pública y legal</b>. Uso profesional y responsable.</div>
+          <div class="legal">Solo consulta información <b>pública</b>. Úsala con una finalidad legítima y conforme a la ley.</div>
         </div>
       </div>
       <div id="list"></div>
@@ -50,18 +54,75 @@
   <div class="hintbar">Arrastra para mover · rueda para zoom · doble-clic en un punto para buscar más</div>
 </div>
 
+<!-- Uso responsable (primer arranque) -->
+<div class="modal-bg" id="mterms">
+  <div class="modal" style="width:min(560px,94vw)">
+    <h2>Antes de empezar</h2>
+    <p class="sub">OptiTrace consulta fuentes <b>públicas</b> (DNS, registros WHOIS, certificados, perfiles públicos, archivos web). Aun así, reunir información sobre una persona puede afectar a su privacidad.</p>
+    <div class="note" style="line-height:1.6">
+      • Úsalo solo con una <b>finalidad legítima</b>: seguridad, antifraude, verificación, protección de marca, periodismo o investigación sobre ti mismo.<br>
+      • Está <b>prohibido</b> usarlo para acosar, extorsionar, exponer o intimidar a nadie.<br>
+      • Tú eres responsable del uso que hagas de los resultados y de cumplir la ley de protección de datos de tu país.<br>
+      • Lo que buscas se envía a las fuentes consultadas (no a OptiSuite): no hay telemetría ni servidor propio.
+    </div>
+    <div class="foot"><button class="btn" id="termsNo">Salir</button><button class="btn primary" id="termsYes">Entiendo y acepto</button></div>
+  </div>
+</div>
+
 <!-- Ajustes -->
 <div class="modal-bg" id="mset">
-  <div class="modal">
+  <div class="modal" style="width:min(580px,94vw)">
     <h2>Ajustes</h2>
-    <p class="sub">OptiTrace funciona sin claves. Estas opciones avanzadas amplían los resultados. Se guardan solo en tu equipo.</p>
-    <div class="field"><label>HaveIBeenPwned — para ver filtraciones de datos (clave gratis recomendada)</label><input id="k_hibp" placeholder="pega tu clave"></div>
-    <div class="field"><label>Shodan</label><input id="k_shodan" placeholder="opcional"></div>
-    <div class="field"><label>Hunter.io</label><input id="k_hunter" placeholder="opcional"></div>
-    <div class="field"><label>VirusTotal</label><input id="k_vt" placeholder="opcional"></div>
-    <div class="field"><label>Proxy de salida (privacidad)</label><input id="k_proxy" placeholder="opcional — http://127.0.0.1:8080"></div>
-    <div class="note">⚖️ Uso responsable: solo datos públicos y con base legítima.</div>
-    <div class="foot"><button class="btn" id="mClear">Limpiar resultados</button><button class="btn" id="mExport">Exportar informe</button><button class="btn primary" id="setSave">Guardar</button></div>
+    <p class="sub">OptiTrace funciona sin claves. Todo se guarda solo en tu equipo (las claves, cifradas).</p>
+    <div class="field"><label>Sitios a revisar por usuario</label>
+      <select id="o_limit"><option value="1500">Los 1500 más populares (≈1 min, recomendado)</option><option value="0">Todos los disponibles (más lento)</option></select>
+    </div>
+    <div class="field"><label>País por defecto para teléfonos sin prefijo</label>
+      <select id="o_country">
+        <option value="">Ninguno (escribe siempre el prefijo +)</option>
+        <option value="CO">Colombia (+57)</option><option value="ES">España (+34)</option><option value="MX">México (+52)</option>
+        <option value="VE">Venezuela (+58)</option><option value="AR">Argentina (+54)</option><option value="PE">Perú (+51)</option>
+        <option value="CL">Chile (+56)</option><option value="EC">Ecuador (+593)</option><option value="US">Estados Unidos (+1)</option>
+      </select>
+    </div>
+    <div class="field"><label>HaveIBeenPwned — ver filtraciones de datos de un correo (clave de pago de haveibeenpwned.com)</label><input id="k_hibp" placeholder="pega tu clave"></div>
+    <div class="field"><label>Proxy de salida para las consultas web (http:// o https://)</label><input id="k_proxy" placeholder="opcional — http://usuario:clave@host:puerto">
+      <div class="note" id="proxyNote" style="margin-top:6px">Las consultas DNS (registros y DNS inverso) no pasan por el proxy.</div>
+    </div>
+    <div class="field"><label><input type="checkbox" id="o_sensitive"> Incluir categorías sensibles (sitios para adultos y de citas)</label>
+      <div class="note">Desactivado por defecto. Revela datos de vida sexual, especialmente protegidos por la ley. Actívalo solo si tienes una base legal clara (p. ej. investigar tu propio correo).</div>
+    </div>
+    <div class="foot"><button class="btn" id="mClear">Limpiar resultados</button><button class="btn primary" id="setSave">Guardar</button></div>
+  </div>
+</div>
+
+<!-- Exportar -->
+<div class="modal-bg" id="mexp">
+  <div class="modal" style="width:min(460px,92vw)">
+    <h2>Exportar informe</h2>
+    <p class="sub">Guarda los resultados de esta búsqueda en tu equipo.</p>
+    <div class="field"><label><input type="checkbox" id="e_sensitive"> Incluir resultados sensibles (adultos/citas)</label></div>
+    <div class="foot"><button class="btn" id="expCancel">Cancelar</button><button class="btn" id="expHtml">HTML</button><button class="btn primary" id="expPdf">PDF</button></div>
+  </div>
+</div>
+
+<!-- Acerca de -->
+<div class="modal-bg" id="mabout">
+  <div class="modal" style="width:min(480px,92vw)">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <span class="logo" style="font-size:26px">🔎</span>
+      <div><h2 style="margin:0">OptiTrace <span id="ver" style="color:var(--muted);font-size:13px"></span></h2><div style="color:var(--muted);font-size:12.5px"><b>Enmanuel Gil</b> · OptiSuite</div></div>
+    </div>
+    <p class="sub">Búsqueda de información pública para uso profesional y responsable. Sin anuncios ni telemetría. Lo que buscas se envía directamente a las fuentes públicas consultadas (DNS, rdap.org, crt.sh, Wayback, Gravatar y los sitios revisados), nunca a OptiSuite.</p>
+    <p class="sub" style="font-size:12px">Software libre (GPL-3.0). Usa el conjunto de datos de <b>Maigret</b> (MIT) y recetas de <b>Holehe</b> (GPL-3.0).</p>
+    <div class="field"><label>Enlaces</label>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <button class="btn" data-url="https://optisuite.app" style="text-align:left">🌐 optisuite.app</button>
+        <button class="btn" data-url="https://github.com/EnMaNueL-G/optitrace" style="text-align:left">🐙 Código fuente en GitHub</button>
+      </div>
+    </div>
+    <div class="note" style="margin-top:12px">© 2026 OptiSuite · support@optisuite.app</div>
+    <div class="foot"><button class="btn primary" id="aboutClose">Cerrar</button></div>
   </div>
 </div>
 

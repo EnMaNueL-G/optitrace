@@ -58,7 +58,7 @@ class Engine {
   }
 
   setKeys(k) { this.keys = k || {}; }
-  setProxy(url) { http.setProxy(url || ''); }
+  setProxy(url) { return http.setProxy(url || ''); }
 
   on(ev, cb) { (this._listeners[ev] = this._listeners[ev] || []).push(cb); }
   emit(ev, payload) { for (const cb of (this._listeners[ev] || [])) { try { cb(payload); } catch (_) {} } }
@@ -74,15 +74,25 @@ class Engine {
   }
 
   /** ctx que recibe cada modulo. */
-  _ctx(graph, originId, signal) {
+  _ctx(graph, originId, signal, options, mod) {
     const self = this;
+    // Cliente HTTP con la señal de cancelación ya puesta: ningún módulo puede olvidarla.
+    const withSig = (fn) => (url, o = {}) => fn(url, { ...o, signal: o.signal || signal });
+    const shttp = signal ? { ...http, req: withSig(http.req), getJson: withSig(http.getJson), getText: withSig(http.getText), probe: withSig(http.probe) } : http;
     return {
-      http,
+      http: shttp,
       keys: this.keys,
       signal,
+      options: options || {},
+      progress: (done, total, extra) => self.emit('progress', { module: mod && mod.id, label: mod && mod.label, state: 'run', done, total, ...(extra || {}) }),
       log: (t) => self.emit('log', t),
+      added: 0,
       node(type, value, extra = {}) {
+        if (signal && signal.aborted) return null; // cancelada o limpiada: no pintar resultados tardíos
+        if (value == null || String(value).trim() === '') return null;
+        const before = graph.nodes.size;
         const n = graph.addNode(type, value, extra);
+        if (graph.nodes.size > before) this.added++;
         self.emit('node', n);
         if (originId) { graph.addEdge(originId, n.id, extra.rel || ''); self.emit('edge', { from: originId, to: n.id, label: extra.rel || '' }); }
         return n;
@@ -102,7 +112,6 @@ class Engine {
     const mods = this.applicable(entity.type);
     this.emit('log', `▸ ${entity.type}:${entity.value} — ${mods.length} módulo(s) aplicables`);
     let found = 0;
-    const ctx = this._ctx(graph, origin.id, signal);
     // Pool de concurrencia: no saturar destinos ni la red.
     const limit = opts.concurrency || 6;
     let i = 0;
@@ -115,10 +124,11 @@ class Engine {
         const t0 = Date.now();
         try {
           this.emit('progress', { module: m.id, label: m.label, state: 'run' });
-          const before = graph.nodes.size;
-          await m.run(entity, ctx);
-          const delta = graph.nodes.size - before;
+          const mctx = this._ctx(graph, origin.id, signal, opts.options, m);
+          await m.run(entity, mctx);
+          const delta = mctx.added;
           found += delta;
+          if (signal && signal.aborted) return; // cancelada: no cachear un resultado incompleto
           this.cache.set(cacheKey, true);
           this.emit('progress', { module: m.id, label: m.label, state: 'done', ms: Date.now() - t0, found: delta });
         } catch (e) {

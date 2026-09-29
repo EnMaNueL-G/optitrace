@@ -10,13 +10,15 @@ const fs = require('fs');
 let exifr = null;
 try { exifr = require('exifr'); } catch (_) {}
 
-async function loadInput(value, http) {
+async function loadInput(value, http, signal) {
   if (/^https?:\/\//i.test(value)) {
-    const res = await http.req(value, { timeout: 15000 });
-    if (!res.ok) return null;
-    const ab = await res.arrayBuffer();
-    return Buffer.from(ab);
+    const res = await http.req(value, { timeout: 20000, signal });
+    if (!res.ok) { res.done(); return null; }
+    try { return await res.readBuffer(30 * 1024 * 1024); } catch (_) { return null; }
   }
+  // Solo archivos locales elegidos en el selector (el proceso principal lo garantiza).
+  // Nunca rutas de red UNC (\\servidor\...): Windows enviaría credenciales NTLM a ese servidor.
+  if (/^[\\/]{2}/.test(value) || !/^[a-z]:[\\/]/i.test(value)) return null;
   try { return fs.readFileSync(value); } catch (_) { return null; }
 }
 
@@ -28,7 +30,7 @@ module.exports = {
 
     // --- EXIF ---
     if (exifr) {
-      const buf = await loadInput(value, ctx.http);
+      const buf = await loadInput(value, ctx.http, ctx.signal);
       if (buf) {
         let data = null;
         try { data = await exifr.parse(buf, { gps: true, tiff: true, ifd0: true, exif: true }); } catch (_) {}

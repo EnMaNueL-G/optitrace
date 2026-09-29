@@ -1,11 +1,12 @@
 'use strict';
 /*
  * OptiTrace — modulo TELEFONO (100% offline, cero red).
- * Usa libphonenumber-js para extraer pais, tipo de linea y formato internacional.
+ * Usa libphonenumber-js para extraer pais, tipo de linea y formato internacional (no la operadora:
+ * la portabilidad hace que el prefijo no la determine).
  * No expone al titular: solo metadatos publicos del numbering plan + dorks de busqueda.
  */
 let lib = null;
-try { lib = require('libphonenumber-js'); } catch (_) {}
+try { lib = require('libphonenumber-js/max'); } catch (_) {}
 
 const TYPE_ES = {
   MOBILE: 'Móvil', FIXED_LINE: 'Fijo', FIXED_LINE_OR_MOBILE: 'Fijo o móvil',
@@ -18,10 +19,14 @@ module.exports = {
   async run(entity, ctx) {
     if (!lib) { ctx.log('  libphonenumber no disponible'); return; }
     const raw = entity.value;
+    // Sin "+": se interpreta como número nacional del país elegido en Ajustes (p. ej. 3001234567 → Colombia).
+    const def = ((ctx.options && ctx.options.phoneCountry) || '').toUpperCase() || undefined;
     let pn = null;
-    try { pn = lib.parsePhoneNumberFromString(raw.startsWith('+') ? raw : '+' + raw.replace(/^\+/, '')); } catch (_) {}
-    if (!pn && /^\d/.test(raw)) { try { pn = lib.parsePhoneNumberFromString('+' + raw); } catch (_) {} }
-    if (!pn) { ctx.log('  Teléfono: no se pudo interpretar (¿incluye prefijo internacional?)'); return; }
+    try { pn = raw.startsWith('+') ? lib.parsePhoneNumberFromString(raw) : lib.parsePhoneNumberFromString(raw, def); } catch (_) {}
+    if ((!pn || !pn.isValid()) && !raw.startsWith('+')) {
+      try { const alt = lib.parsePhoneNumberFromString('+' + raw); if (alt && alt.isValid()) pn = alt; } catch (_) {}
+    }
+    if (!pn) { ctx.log('  Teléfono: no se pudo interpretar. Escríbelo con prefijo (+57…) o elige tu país en Ajustes.'); return; }
     const country = pn.country || '??';
     const valid = pn.isValid();
     const type = pn.getType ? pn.getType() : null;
