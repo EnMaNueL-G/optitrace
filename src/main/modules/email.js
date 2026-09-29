@@ -20,7 +20,7 @@ const emailCore = {
     if (mx && mx.length) {
       mx.sort((a, b) => a.priority - b.priority);
       ctx.node('domain', domain, { rel: 'dominio', source: 'email' });
-      ctx.node('note', `MX de ${domain}`, { rel: 'recibe correo', source: 'mx', data: { servidores: mx.map((m) => `${m.exchange}(${m.priority})`).join(', ') } });
+      ctx.node('fact', `MX de ${domain}`, { rel: 'recibe correo', source: 'mx', data: { servidores: mx.map((m) => `${m.exchange}(${m.priority})`).join(', ') } });
       ctx.log(`  MX: ${domain} → ${mx[0].exchange} (${mx.length} servidor/es) · puede recibir correo`);
     } else { ctx.log(`  MX: ${domain} sin registros — probablemente no recibe correo`); }
 

@@ -15,23 +15,40 @@
 const fs = require('fs');
 const path = require('path');
 
-/** Etiquetas que revelan datos sensibles (vida sexual, citas). Solo se consultan si el usuario lo activa. */
-const SENSITIVE_TAGS = new Set(['porn', 'dating', 'webcam', 'adult', 'erotic', 'escort', 'sex']);
+/**
+ * Etiquetas que revelan categorías especiales de datos (vida sexual, salud, religión — RGPD art. 9,
+ * Ley 1581 art. 5). Solo se consultan si el usuario lo activa.
+ */
+const SENSITIVE_TAGS = new Set(['porn', 'dating', 'webcam', 'adult', 'erotic', 'escort', 'sex', 'medicine', 'psychology', 'religion']);
 
 let DATA = null;
+let USER_DATA_FILE = '';   // base actualizada desde Ajustes (carpeta de datos del usuario)
+let SOURCE = 'incluida';
+function setUserDataFile(f) { USER_DATA_FILE = f; DATA = null; }
 function load() {
   if (DATA) return DATA;
+  SOURCE = 'incluida';
+  if (USER_DATA_FILE) {
+    try {
+      if (fs.existsSync(USER_DATA_FILE)) {
+        const d = JSON.parse(fs.readFileSync(USER_DATA_FILE, 'utf8'));
+        if (module.exports.validate(d)) { DATA = d; SOURCE = 'actualizada'; } // si no es válida → la incluida
+      }
+    } catch (_) { DATA = null; }
+  }
   const cands = [
     path.join(__dirname, '..', '..', '..', 'data', 'maigret-data.json'),
     process.resourcesPath ? path.join(process.resourcesPath, 'data', 'maigret-data.json') : null,
     path.join(process.cwd(), 'data', 'maigret-data.json'),
   ].filter(Boolean);
-  for (const c of cands) { try { if (fs.existsSync(c)) { DATA = JSON.parse(fs.readFileSync(c, 'utf8')); break; } } catch (_) {} }
+  if (!DATA) for (const c of cands) { try { if (fs.existsSync(c)) { DATA = JSON.parse(fs.readFileSync(c, 'utf8')); break; } } catch (_) {} }
   if (!DATA) { DATA = { sites: {}, engines: {}, _list: [] }; return DATA; }
   const engines = DATA.engines || {};
   const list = [];
   for (const [name, raw] of Object.entries(DATA.sites || {})) {
     if (raw.disabled) continue;
+    if (raw.type && raw.type !== 'username') continue;   // busca por ID interno (steam_id, orcid…), no por usuario
+    if (raw.protocol && raw.protocol !== 'http' && raw.protocol !== 'https') continue; // dns/tor/i2p
     const eng = raw.engine && engines[raw.engine] ? (engines[raw.engine].site || {}) : {};
     const cfg = { ...eng, ...raw };
     const main = String(cfg.urlMain || '').replace(/\/+$/, '');
@@ -48,6 +65,8 @@ function load() {
       errors: Object.keys(cfg.errors || {}),
       ignore403: !!cfg.ignore403,
       headers: cfg.headers || null,
+      method: (cfg.requestMethod || 'GET').toUpperCase(),
+      payload: cfg.requestPayload || null,
       regex: cfg.regexCheck ? safeRe(cfg.regexCheck) : null,
       rank: typeof raw.alexaRank === 'number' ? raw.alexaRank : 9e9,
       tags,
@@ -69,7 +88,12 @@ async function check(site, user, http, signal) {
   const profile = site.profileUrl.replace(/\{username\}/g, enc);
   try {
     const manual = site.checkType === 'response_url';
-    const res = await http.req(url, { timeout: 8000, signal, redirect: manual ? 'manual' : 'follow', headers: site.headers || {} });
+    const opts = { timeout: 8000, signal, redirect: manual ? 'manual' : 'follow', headers: { ...(site.headers || {}) }, method: site.method };
+    if (site.method === 'POST' && site.payload) {
+      opts.body = JSON.stringify(site.payload).replace(/\{username\}/g, () => JSON.stringify(user).slice(1, -1));
+      opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
+    }
+    const res = await http.req(url, opts);
     const status = res.status;
     if (status === 429 || status === 503 || (status === 403 && !site.ignore403)) { res.done(); return { state: 'unknown' }; }
     if (site.checkType === 'status_code') {
@@ -94,7 +118,14 @@ async function check(site, user, http, signal) {
 module.exports = {
   id: 'user.maigret', label: 'Cuentas en sitios (Maigret)', accepts: ['username'], order: 10,
   SENSITIVE_TAGS,
+  setUserDataFile,
   count() { return (load()._list || []).length; },
+  info() { const d = load(); return { sites: (d._list || []).length, source: SOURCE }; },
+  /** Valida una base descargada (misma forma que la de Maigret). */
+  validate(json) {
+    return json && typeof json === 'object' && json.sites && typeof json.sites === 'object' &&
+      Object.keys(json.sites).length > 1000 && json.engines && typeof json.engines === 'object';
+  },
   async run(entity, ctx) {
     const user = entity.value;
     const opt = ctx.options || {};

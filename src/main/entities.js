@@ -40,6 +40,7 @@ const META = {
   asn: { label: 'ASN/Red', icon: '🛰️', color: '#fb923c' },
   dns: { label: 'Registro DNS', icon: '🧭', color: '#64748b' },
   note: { label: 'Nota', icon: '📝', color: '#94a3b8' },
+  fact: { label: 'Dato clave', icon: '📌', color: '#f97316' },
 };
 
 /** Detecta el tipo de una cadena. Devuelve {type, value} normalizado. */

@@ -57,7 +57,7 @@ const ipInternetDb = {
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(entity.value)) return; // solo IPv4
     const j = await ctx.http.getJson(`https://internetdb.shodan.io/${entity.value}`, { timeout: 10000, signal: ctx.signal });
     if (!j || !Array.isArray(j.ports)) { ctx.log('  InternetDB: sin datos de escaneo para esta IP'); return; }
-    if (j.ports.length) ctx.node('note', `Puertos abiertos: ${j.ports.join(', ')}`, { rel: 'puertos', source: 'Shodan InternetDB', data: { puertos: j.ports.join(', '), etiquetas: (j.tags || []).join(', ') } });
+    if (j.ports.length) ctx.node('fact', `Puertos abiertos: ${j.ports.join(', ')}`, { rel: 'puertos', source: 'Shodan InternetDB', data: { puertos: j.ports.join(', '), etiquetas: (j.tags || []).join(', ') } });
     for (const h of (j.hostnames || []).slice(0, 20)) ctx.node('domain', h, { rel: 'hostname', source: 'Shodan InternetDB' });
     for (const v of (j.vulns || []).slice(0, 30)) ctx.node('url', `https://nvd.nist.gov/vuln/detail/${v}`, { rel: 'CVE conocido', source: 'Shodan InternetDB', label: v });
     ctx.log(`  InternetDB: ${j.ports.length} puerto(s)${(j.vulns || []).length ? ' · ⚠ ' + j.vulns.length + ' CVE' : ''}${(j.tags || []).length ? ' · ' + j.tags.join(', ') : ''}`);

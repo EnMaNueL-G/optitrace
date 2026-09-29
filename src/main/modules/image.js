@@ -36,10 +36,10 @@ module.exports = {
         try { data = await exifr.parse(buf, { gps: true, tiff: true, ifd0: true, exif: true }); } catch (_) {}
         if (data) {
           const cam = [data.Make, data.Model].filter(Boolean).join(' ').trim();
-          if (cam) ctx.node('note', `Cámara: ${cam}`, { rel: 'cámara', source: 'exif', data: { lente: data.LensModel || '', software: data.Software || '' } });
+          if (cam) ctx.node('fact', `Cámara: ${cam}`, { rel: 'cámara', source: 'exif', data: { lente: data.LensModel || '', software: data.Software || '' } });
           if (data.Software) ctx.node('note', `Software: ${data.Software}`, { rel: 'software', source: 'exif' });
           const when = data.DateTimeOriginal || data.CreateDate || data.ModifyDate;
-          if (when) ctx.node('note', `Fecha de captura: ${new Date(when).toLocaleString('es-ES')}`, { rel: 'fecha', source: 'exif' });
+          if (when) ctx.node('fact', `Fecha de captura: ${new Date(when).toLocaleString('es-ES')}`, { rel: 'fecha', source: 'exif' });
           if (typeof data.latitude === 'number' && typeof data.longitude === 'number') {
             const lat = data.latitude.toFixed(6), lon = data.longitude.toFixed(6);
             ctx.node('location', `${lat}, ${lon}`, { rel: 'GPS de la foto', source: 'exif', data: { lat, lon } });

@@ -9,14 +9,15 @@
 <body>
 <div class="app">
   <header class="top glass">
-    <div class="brand"><span class="logo">🔎</span><div>OptiTrace<small>Búsqueda de información pública</small></div></div>
+    <div class="brand"><img class="logo-img" src="logo.png" alt=""><div>OptiTrace<small>Búsqueda de información pública</small></div></div>
     <div class="search">
       <span style="color:var(--muted)">⌕</span>
-      <input id="q" placeholder="Escribe un usuario, correo, web, IP o teléfono…" autocomplete="off" spellcheck="false">
+      <input id="q" placeholder="Escribe un usuario, correo, web, IP, teléfono o wallet…" autocomplete="off" spellcheck="false">
       <span class="badge" id="kind">—</span>
     </div>
     <button class="btn primary" id="go">Buscar</button>
     <button class="btn icon" id="img" title="Analizar una imagen de tu equipo">📷</button>
+    <button class="btn icon" id="histBtn" title="Historial de búsquedas">🕘</button>
     <button class="btn icon" id="export" title="Exportar informe (HTML o PDF)">📄</button>
     <button class="btn icon" id="map" title="Ver mapa de conexiones (avanzado)">🕸️</button>
     <button class="btn icon" id="settings" title="Ajustes">⚙️</button>
@@ -74,6 +75,13 @@
   <div class="modal" style="width:min(580px,94vw)">
     <h2>Ajustes</h2>
     <p class="sub">OptiTrace funciona sin claves. Todo se guarda solo en tu equipo (las claves, cifradas).</p>
+    <div class="field"><label>Base de sitios (Maigret)</label>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span id="dbInfo" style="flex:1;color:var(--muted);font-size:13px"></span>
+        <button class="btn" id="dbUpdate">Actualizar ahora</button>
+      </div>
+      <div class="note hidden" id="dbMsg" style="margin-top:6px"></div>
+    </div>
     <div class="field"><label>Sitios a revisar por usuario</label>
       <select id="o_limit"><option value="1500">Los 1500 más populares (≈1 min, recomendado)</option><option value="0">Todos los disponibles (más lento)</option></select>
     </div>
@@ -87,12 +95,23 @@
     </div>
     <div class="field"><label>HaveIBeenPwned — ver filtraciones de datos de un correo (clave de pago de haveibeenpwned.com)</label><input id="k_hibp" placeholder="pega tu clave"></div>
     <div class="field"><label>Proxy de salida para las consultas web (http:// o https://)</label><input id="k_proxy" placeholder="opcional — http://usuario:clave@host:puerto">
-      <div class="note" id="proxyNote" style="margin-top:6px">Las consultas DNS (registros y DNS inverso) no pasan por el proxy.</div>
+      <div class="note" id="proxyNote" style="margin-top:6px">Con proxy: las consultas DNS no pasan por él y la del certificado TLS se omite.</div>
     </div>
-    <div class="field"><label><input type="checkbox" id="o_sensitive"> Incluir categorías sensibles (sitios para adultos y de citas)</label>
-      <div class="note">Desactivado por defecto. Revela datos de vida sexual, especialmente protegidos por la ley. Actívalo solo si tienes una base legal clara (p. ej. investigar tu propio correo).</div>
+    <div class="field"><label><input type="checkbox" id="o_history"> Guardar historial de búsquedas en este equipo</label></div>
+    <div class="field"><label><input type="checkbox" id="o_sensitive"> Incluir categorías sensibles (adultos, citas, salud y religión)</label>
+      <div class="note">Desactivado por defecto. Revelan datos especialmente protegidos por la ley (vida sexual, salud, creencias). Actívalo solo si tienes una base legal clara (p. ej. investigar tu propio correo).</div>
     </div>
     <div class="foot"><button class="btn" id="mClear">Limpiar resultados</button><button class="btn primary" id="setSave">Guardar</button></div>
+  </div>
+</div>
+
+<!-- Historial -->
+<div class="modal-bg" id="mhist">
+  <div class="modal" style="width:min(560px,94vw)">
+    <h2>Historial de búsquedas</h2>
+    <p class="sub">Solo se guarda en este equipo. Toca una búsqueda para repetirla.</p>
+    <div id="histList" style="max-height:52vh;overflow:auto"></div>
+    <div class="foot"><button class="btn" id="histClear">Borrar historial</button><button class="btn primary" id="histClose">Cerrar</button></div>
   </div>
 </div>
 
@@ -110,7 +129,7 @@
 <div class="modal-bg" id="mabout">
   <div class="modal" style="width:min(480px,92vw)">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-      <span class="logo" style="font-size:26px">🔎</span>
+      <img class="logo-img" src="logo.png" alt="" style="width:44px;height:44px">
       <div><h2 style="margin:0">OptiTrace <span id="ver" style="color:var(--muted);font-size:13px"></span></h2><div style="color:var(--muted);font-size:12.5px"><b>Enmanuel Gil</b> · OptiSuite</div></div>
     </div>
     <p class="sub">Búsqueda de información pública para uso profesional y responsable. Sin anuncios ni telemetría. Lo que buscas se envía directamente a las fuentes públicas consultadas (DNS, rdap.org, crt.sh, Wayback, Gravatar y los sitios revisados), nunca a OptiSuite.</p>

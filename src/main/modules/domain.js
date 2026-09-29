@@ -54,7 +54,7 @@ const rdapModule = {
     }
     if (registrar) ctx.node('org', registrar, { rel: 'registrador', source: 'rdap' });
     const status = (j.status || []).join(', ');
-    ctx.node('note', `${d} · WHOIS`, {
+    ctx.node('fact', `${d} · WHOIS`, {
       rel: 'whois', source: 'rdap',
       data: { registrar, status, registered: events.registration, expires: events.expiration, updated: events.lastChanged },
     });

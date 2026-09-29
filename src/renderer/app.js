@@ -14,6 +14,7 @@ window.addEventListener('resize', () => { if ($('#overlay').classList.contains('
 
 /* Secciones en lenguaje sencillo, por orden de importancia. */
 const SECTIONS = [
+  { key: 'facts', title: '📌 Datos clave', types: ['fact'] },
   { key: 'accounts', title: '🔓 Cuentas encontradas', types: ['account'] },
   { key: 'alias', title: '🔎 Posibles cuentas con el mismo alias (no confirmadas con el correo)', types: [] },
   { key: 'breaches', title: '⚠️ Filtraciones de datos', types: ['breach'] },
@@ -52,10 +53,27 @@ function applySettings(s) {
   $('#o_limit').value = String(s.options.maigretLimit === 0 ? 0 : 1500);
   $('#o_country').value = s.options.phoneCountry || '';
   $('#o_sensitive').checked = !!s.options.sensitive;
+  $('#o_history').checked = s.options.history !== false;
+  showDb(s.maigret);
   $('#proxyNote').textContent = s.proxyError
     ? '⚠️ ' + s.proxyError + ' — las búsquedas web fallarán hasta que lo corrijas o lo borres.'
-    : 'Las consultas DNS (registros y DNS inverso) no pasan por el proxy.';
+    : 'Con proxy: las consultas DNS no pasan por él y la del certificado TLS se omite.';
 }
+
+function showDb(m) {
+  if (!m) return;
+  $('#dbInfo').textContent = `${Number(m.sites).toLocaleString('es-ES')} sitios · base ${m.source === 'actualizada' ? 'actualizada' : 'incluida'} del ${m.date || '—'}`;
+}
+$('#dbUpdate').addEventListener('click', async () => {
+  const b = $('#dbUpdate'); b.disabled = true; b.textContent = 'Descargando…';
+  $('#dbMsg').classList.add('hidden');
+  let r;
+  try { r = await window.opti.updateSites(); } catch (e) { r = { ok: false, error: e.message }; }
+  b.disabled = false; b.textContent = 'Actualizar ahora';
+  if (r.maigret) showDb(r.maigret);
+  $('#dbMsg').textContent = r.ok ? `✅ Base actualizada: ${Number(r.maigret.sites).toLocaleString('es-ES')} sitios.` : `⚠️ No se pudo actualizar: ${r.error || ''}`;
+  $('#dbMsg').classList.remove('hidden');
+});
 
 $('#termsYes').addEventListener('click', async () => { await window.opti.setSettings({ options: { accepted: true } }); $('#mterms').classList.remove('show'); });
 $('#termsNo').addEventListener('click', () => window.close());
@@ -174,7 +192,8 @@ function rowHtml(n) {
   const canPivot = !url && canSearch(n);
   const clk = (url || canPivot) ? 'clk' : '';
   let sub = '';
-  if (n.type === 'account') sub = url ? `Encontrado en ${esc(n.data && n.data.servicio || prettyUrl(url))}` : esc(n.source || '');
+  if (n.type === 'fact') sub = esc(Object.entries(n.data || {}).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ').slice(0, 260));
+  else if (n.type === 'account') sub = url ? `Encontrado en ${esc(n.data && n.data.servicio || prettyUrl(url))}` : esc(n.source || '');
   else if (n.type === 'breach') sub = esc((n.data && (n.data.datos || n.data.fecha)) || 'Aparece en una filtración');
   else if (n.type === 'location') sub = esc((n.data && n.data.nota) || ((n.data && n.data.lat) ? `${n.data.lat}, ${n.data.lon}` : (n.source || '')));
   else if (n.type === 'url') sub = esc(prettyUrl(url || n.value));
@@ -208,7 +227,7 @@ document.querySelectorAll('#mabout [data-url]').forEach((b) => b.addEventListene
 /* ---------- ajustes ---------- */
 $('#settings').addEventListener('click', async () => { applySettings(await window.opti.getSettings()); $('#mset').classList.add('show'); });
 $('#o_sensitive').addEventListener('change', (e) => {
-  if (e.target.checked && !confirm('Vas a incluir sitios para adultos y de citas.\n\nEsos resultados revelan datos sobre la vida sexual de una persona, especialmente protegidos por la ley, y pueden causar daño grave si se exponen.\n\n¿Tienes una base legal clara para consultarlos (por ejemplo, investigar tu propio correo)?')) e.target.checked = false;
+  if (e.target.checked && !confirm('Vas a incluir sitios para adultos, de citas, de salud y religiosos.\n\nEsos resultados revelan datos especialmente protegidos por la ley (vida sexual, salud, creencias) y pueden causar daño grave si se exponen.\n\n¿Tienes una base legal clara para consultarlos (por ejemplo, investigar tu propio correo)?')) e.target.checked = false;
 });
 $('#setSave').addEventListener('click', async () => {
   const hibp = $('#k_hibp').value.trim();
@@ -217,7 +236,7 @@ $('#setSave').addEventListener('click', async () => {
   const r = await window.opti.setSettings({
     keys,
     proxy: $('#k_proxy').value.trim(),
-    options: { sensitive: $('#o_sensitive').checked, maigretLimit: parseInt($('#o_limit').value, 10), phoneCountry: $('#o_country').value },
+    options: { sensitive: $('#o_sensitive').checked, history: $('#o_history').checked, maigretLimit: parseInt($('#o_limit').value, 10), phoneCountry: $('#o_country').value },
   });
   applySettings(r);
   const info = await window.opti.init(); MODS = info.modules || [];
@@ -228,6 +247,25 @@ $('#mClear').addEventListener('click', async () => {
   $('#summary').classList.add('hidden'); $('#welcome').classList.remove('hidden'); $('#mset').classList.remove('show');
 });
 document.querySelectorAll('.modal-bg').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m && m.id !== 'mterms') m.classList.remove('show'); }));
+
+/* ---------- historial ---------- */
+$('#histBtn').addEventListener('click', async () => {
+  const s = await window.opti.getSettings();
+  const list = await window.opti.history();
+  const fmt = (ts) => new Date(ts).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+  $('#histList').innerHTML = s.options.history === false
+    ? '<div class="note">El historial está desactivado en Ajustes.</div>'
+    : (!list.length ? '<div class="note">Aún no hay búsquedas guardadas.</div>'
+      : list.map((h, i) => `<div class="hrow" data-i="${i}"><span>${esc((META[h.type] || {}).icon || '•')}</span><span class="q">${esc(h.q)}</span><span class="m">${h.results} resultados${h.cancelled ? ' · cancelada' : ''} · ${esc(fmt(h.ts))}</span></div>`).join(''));
+  $('#histList').onclick = (e) => {
+    const row = e.target.closest('.hrow'); if (!row) return;
+    const h = list[+row.dataset.i]; if (!h || h.search === false) return;
+    $('#mhist').classList.remove('show'); search(h.q, true);
+  };
+  $('#mhist').classList.add('show');
+});
+$('#histClose').addEventListener('click', () => $('#mhist').classList.remove('show'));
+$('#histClear').addEventListener('click', async () => { await window.opti.clearHistory(); $('#histList').innerHTML = '<div class="note">Historial borrado.</div>'; });
 
 /* ---------- exportar ---------- */
 $('#export').addEventListener('click', async () => {

@@ -31,7 +31,7 @@ module.exports = {
     const valid = pn.isValid();
     const type = pn.getType ? pn.getType() : null;
     ctx.node('location', country, { rel: 'país', source: 'libphonenumber', data: { prefijo: '+' + pn.countryCallingCode, valido: valid } });
-    ctx.node('note', `${pn.formatInternational()} · ${TYPE_ES[type] || type || 'tipo n/d'}`, {
+    ctx.node('fact', `${pn.formatInternational()} · ${TYPE_ES[type] || type || 'tipo n/d'}`, {
       rel: 'teléfono', source: 'libphonenumber',
       data: { internacional: pn.formatInternational(), nacional: pn.formatNational(), e164: pn.number, tipo: TYPE_ES[type] || type || 'n/d', valido: valid ? 'sí' : 'no', pais: country },
     });

@@ -14,29 +14,34 @@ Parte de la suite [OptiSuite](https://optisuite.app).
 ## ✨ Qué hace
 
 - **Usuario** — busca el nombre de usuario en los **1500 sitios más populares** del conjunto de
-  datos de [Maigret](https://github.com/soxoj/maigret) (≈2500 sitios activos; en Ajustes puedes
-  elegir revisarlos todos). Los sitios que bloquean la consulta (antibot, captcha) o no responden
+  datos de [Maigret](https://github.com/soxoj/maigret) (≈5400 sitios utilizables; en Ajustes puedes
+  elegir revisarlos todos y **actualizar la base** con un clic). Los sitios que bloquean la consulta (antibot, captcha) o no responden
   se cuentan aparte como **«sin respuesta clara»**: nunca como «sí» ni como «no».
 - **Correo** — MX, perfil público de Gravatar y registro en **Yahoo, Spotify, Duolingo y GitHub**
   (técnica de [Holehe](https://github.com/megadose/holehe)). Además busca la parte anterior a la @
   como alias en los sitios de Maigret; esos resultados se muestran aparte como **«posibles, no
   confirmados con el correo»**, porque otra persona puede usar el mismo nombre.
-- **Dominio y web** — DNS, RDAP/WHOIS, subdominios por *certificate transparency* (crt.sh) y
-  primera/última captura en **Wayback Machine**.
+- **Dominio y web** — DNS, RDAP/WHOIS, subdominios por *certificate transparency* (crt.sh),
+  primera/última captura en **Wayback Machine**, **seguridad del correo** (SPF/DMARC: ¿se puede
+  suplantar?), **certificado TLS** (emisor, caducidad, otros dominios del mismo certificado),
+  **cabeceras y tecnología** de la web y análisis públicos previos en **URLScan.io**.
 - **IP** — ubicación aproximada y ASN (ipwho.is), titular del bloque (RDAP), DNS inverso y
   **puertos/CVE conocidos** del escaneo público de Shodan InternetDB (sin clave).
 - **Teléfono** — país, tipo de línea (móvil/fijo…) y validez, **sin conexión** (libphonenumber).
   No da la operadora: con la portabilidad, el prefijo no la determina.
 - **Imagen** — metadatos EXIF/GPS de un archivo de tu equipo + enlaces de búsqueda inversa
   (Google Lens, Yandex, Bing, TinEye).
+- **Wallets** — saldo y nº de transacciones de **Bitcoin** (Blockstream) y **Ethereum**
+  (Blockscout, con nombre ENS) + enlaces a exploradores. Una dirección no identifica a su dueño.
 - **Filtraciones** — HaveIBeenPwned, con tu propia clave (de pago en haveibeenpwned.com).
+- **Datos clave** arriba de la lista e **historial de búsquedas** local (desactivable y borrable).
 - **Informe** exportable en **HTML o PDF**, botón **Cancelar**, progreso en vivo y aviso de
   versión nueva.
 
 ### Categorías sensibles (desactivadas por defecto)
 
-Comprobar si un correo o usuario existe en **sitios para adultos o de citas** revela datos sobre la
-vida sexual de una persona, especialmente protegidos por la ley (RGPD art. 9, Ley 1581 de 2012
+Comprobar si un correo o usuario existe en **sitios para adultos, de citas, de salud o religiosos**
+revela datos especialmente protegidos por la ley (RGPD art. 9, Ley 1581 de 2012
 art. 5). Por eso esas consultas **no se hacen** salvo que las actives en Ajustes (con aviso), y
 se excluyen del informe salvo que lo marques.
 
@@ -44,7 +49,8 @@ se excluyen del informe salvo que lo marques.
 
 - Sin telemetría, sin anuncios, sin cuenta y sin servidor propio.
 - **Lo que buscas sí sale de tu equipo**: se envía directamente a las fuentes consultadas (DNS,
-  rdap.org, crt.sh, archive.org, ipwho.is, Shodan InternetDB, Gravatar y los sitios revisados),
+  rdap.org, crt.sh, archive.org, urlscan.io, ipwho.is, Shodan InternetDB, Blockstream, Blockscout,
+  Gravatar y los sitios revisados),
   nunca a OptiSuite. El análisis de teléfono y el EXIF de un archivo local no usan la red.
 - Proxy de salida opcional (http/https) para las consultas web. Si el proxy no funciona, las
   búsquedas **fallan** en lugar de salir directas. Las consultas DNS no pasan por el proxy.

@@ -21,7 +21,11 @@ let current = null;          // { ctrl: AbortController } de la búsqueda en cur
 let pickedImage = '';        // única ruta local de imagen permitida (elegida en el selector)
 
 /* ---------------- persistencia (claves BYOK cifradas con safeStorage) ---------------- */
-const DEFAULT_OPTIONS = { sensitive: false, maigretLimit: 1500, phoneCountry: '', accepted: false };
+const DEFAULT_OPTIONS = { sensitive: false, maigretLimit: 1500, phoneCountry: '', accepted: false, history: true, maigretUpdated: '' };
+const BUNDLED_DATA_DATE = '2026-09-25';   // fecha de la base de Maigret incluida en esta versión
+const MAIGRET_URL = 'https://raw.githubusercontent.com/soxoj/maigret/main/maigret/resources/data.json';
+let HISTORY_PATH = '';
+let MAIGRET_USER_FILE = '';
 let store = { keys: {}, proxy: '', options: { ...DEFAULT_OPTIONS } };
 
 function enc(v) {
@@ -104,12 +108,28 @@ function handle(ch, fn) {
   ipcMain.handle(ch, (e, ...a) => { if (!trusted(e)) throw new Error('origen no autorizado'); return fn(e, ...a); });
 }
 
+function maigretInfo() {
+  const um = engine.modules.find((m) => m.id === 'user.maigret');
+  const i = um ? um.info() : { sites: 0, source: 'incluida' };
+  return { ...i, date: i.source === 'actualizada' ? (store.options.maigretUpdated || '').slice(0, 10) : BUNDLED_DATA_DATE };
+}
+
+/* ---------------- historial local (solo en este equipo) ---------------- */
+function readHistory() { try { return JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8')); } catch (_) { return []; } }
+function addHistory(entry) {
+  if (!store.options.history) return;
+  const list = readHistory().filter((h) => h.q !== entry.q);
+  list.unshift(entry);
+  try { fs.writeFileSync(HISTORY_PATH + '.tmp', JSON.stringify(list.slice(0, 100), null, 1)); fs.renameSync(HISTORY_PATH + '.tmp', HISTORY_PATH); } catch (_) {}
+}
+
 function publicSettings() {
   return {
     keys: Object.fromEntries(Object.entries(store.keys).map(([k, v]) => [k, !!v])),
     proxy: store.proxy ? store.proxy.replace(/\/\/[^@/]*@/, '//***@') : '',
     proxyError: engine.proxyError || '',
     options: store.options,
+    maigret: maigretInfo(),
   };
 }
 
@@ -147,7 +167,13 @@ handle('trace:expand', async (_e, { value, fresh, fromPicker }) => {
         r.found += r2.found;
       }
     }
-    return { ok: true, entity: ent, ...r, cancelled: ctrl.signal.aborted, graph: graph.toJSON() };
+    const g = graph.toJSON();
+    addHistory({
+      q: ent.type === 'image' && !isHttp(ent.value) ? '📷 ' + path.basename(ent.value) : ent.value,
+      type: ent.type, ts: Date.now(), results: r.found, cancelled: ctrl.signal.aborted,
+      search: !(ent.type === 'image' && !isHttp(ent.value)),
+    });
+    return { ok: true, entity: ent, ...r, cancelled: ctrl.signal.aborted, graph: g };
   } catch (e) { return { ok: false, error: e.message }; }
   finally { if (current === me) current = null; }
 });
@@ -184,6 +210,10 @@ handle('settings:set', async (_e, s) => {
       if (typeof o.accepted === 'boolean') store.options.accepted = o.accepted;
       if (Number.isInteger(o.maigretLimit) && o.maigretLimit >= 0) store.options.maigretLimit = o.maigretLimit;
       if (typeof o.phoneCountry === 'string' && /^([A-Z]{2})?$/.test(o.phoneCountry)) store.options.phoneCountry = o.phoneCountry;
+      if (typeof o.history === 'boolean') {
+        store.options.history = o.history;
+        if (!o.history) { try { fs.unlinkSync(HISTORY_PATH); } catch (_) {} } // desactivar = borrar lo guardado
+      }
     }
     engine.setKeys(store.keys);
     engine.proxyError = engine.setProxy(store.proxy);
@@ -215,6 +245,32 @@ handle('report:save', async (_e, { html, name, pdf }) => {
     shell.showItemInFolder(r.filePath);
     return { ok: true, path: r.filePath };
   } catch (e) { return { ok: false, error: e.message }; }
+});
+
+handle('history:list', async () => (store.options.history ? readHistory() : []));
+handle('history:clear', async () => { try { fs.unlinkSync(HISTORY_PATH); } catch (_) {} return { ok: true }; });
+
+/** Descarga la base de sitios más reciente de Maigret (MIT) a la carpeta de datos del usuario. */
+handle('maigret:update', async () => {
+  const um = engine.modules.find((m) => m.id === 'user.maigret');
+  if (!um) return { ok: false, error: 'módulo de usuarios no disponible' };
+  const httpu = require('./util/http');
+  const ps = httpu.proxyState();
+  if (ps.error) return { ok: false, error: ps.error + ' (corrígelo en el campo Proxy).', maigret: maigretInfo() };
+  const res = await httpu.getText(MAIGRET_URL, { timeout: 120000 });
+  if (!res) return { ok: false, error: 'No se pudo descargar la base (sin conexión o GitHub no responde).', maigret: maigretInfo() };
+  let json;
+  try { json = JSON.parse(res); } catch (_) { return { ok: false, error: 'La descarga llegó incompleta.', maigret: maigretInfo() }; }
+  if (!um.validate(json)) return { ok: false, error: 'La base descargada no tiene el formato esperado; se mantiene la actual.', maigret: maigretInfo() };
+  try {
+    const tmp = MAIGRET_USER_FILE + '.tmp';
+    fs.writeFileSync(tmp, res);
+    fs.renameSync(tmp, MAIGRET_USER_FILE);
+  } catch (e) { return { ok: false, error: 'No se pudo guardar la base: ' + e.message, maigret: maigretInfo() }; }
+  store.options.maigretUpdated = new Date().toISOString();
+  saveStore();
+  um.setUserDataFile(MAIGRET_USER_FILE);
+  return { ok: true, maigret: maigretInfo() };
 });
 
 handle('app:openExternal', async (_e, url) => {
@@ -299,8 +355,10 @@ async function shot(query) {
     if (cancelAt) { await new Promise((r) => setTimeout(r, cancelAt)); await win.webContents.executeJavaScript(`document.querySelector('#go').click()`); }
     await new Promise((r) => setTimeout(r, +(process.env.OPTITRACE_SHOT_WAIT || 20000)));
     if (process.env.OPTITRACE_SHOT_CLICK) { // p. ej. "#settings": abrir un panel antes de capturar
-      try { await win.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(process.env.OPTITRACE_SHOT_CLICK)}).click()`); } catch (_) {}
-      await new Promise((r) => setTimeout(r, 1200));
+      for (const sel of process.env.OPTITRACE_SHOT_CLICK.split(',')) { // varios clics seguidos: "#settings,#dbUpdate"
+        try { await win.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(sel.trim())}).click()`); } catch (_) {}
+        await new Promise((r) => setTimeout(r, +(process.env.OPTITRACE_SHOT_STEP || 1200)));
+      }
       try { process.stdout.write('SHOT_STATE ' + await win.webContents.executeJavaScript(`[...document.querySelectorAll('.modal-bg.show')].map(m=>m.id).join(',') || 'ninguno'`) + '\n'); } catch (e) { process.stdout.write('SHOT_STATE_ERR ' + e.message + '\n'); }
     }
     try {
@@ -325,7 +383,13 @@ else app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.res
 
 app.whenReady().then(() => {
   STORE_PATH = path.join(app.getPath('userData'), 'optitrace-store.json');
+  HISTORY_PATH = path.join(app.getPath('userData'), 'optitrace-history.json');
+  MAIGRET_USER_FILE = path.join(app.getPath('userData'), 'maigret-data.json');
   engine.loadModules();
+  loadStore();
+  // La base descargada solo manda si es más reciente que la incluida en esta versión de la app.
+  const um = engine.modules.find((m) => m.id === 'user.maigret');
+  if (um && (store.options.maigretUpdated || '').slice(0, 10) >= BUNDLED_DATA_DATE) um.setUserDataFile(MAIGRET_USER_FILE);
   if (shotIdx >= 0) { shot(process.argv[shotIdx + 1] || 'github'); return; }
   if (probeIdx >= 0) { loadStore(); probe(process.argv[probeIdx + 1] || ''); return; }
   if (isSelftest) { selftest(); return; }
